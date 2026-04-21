@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     sync::{mpsc, Arc, Mutex},
     thread,
 };
@@ -10,9 +11,22 @@ pub struct ThreadPool {
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+// Membuat tipe error khusus untuk validasi pembuatan pool
+#[derive(Debug)]
+pub struct PoolCreationError;
+
+impl fmt::Display for PoolCreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Pool size must be greater than zero.")
+    }
+}
+
 impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
+    // Fungsi build mengembalikan Result, bukan langsung panic
+    pub fn build(size: usize) -> Result<ThreadPool, PoolCreationError> {
+        if size == 0 {
+            return Err(PoolCreationError);
+        }
 
         let (sender, receiver) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(receiver));
@@ -22,7 +36,7 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender }
+        Ok(ThreadPool { workers, sender })
     }
 
     pub fn execute<F>(&self, f: F)
@@ -33,6 +47,7 @@ impl ThreadPool {
         self.sender.send(job).unwrap();
     }
 }
+
 
 struct Worker {
     id: usize,

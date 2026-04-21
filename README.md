@@ -47,3 +47,11 @@ Ketika saya mengakses rute `/sleep` di satu tab browser, lalu segera mengakses r
 Pada tahap akhir ini, saya mengimplementasikan `ThreadPool` untuk mengubah *server* menjadi arsitektur *multithreaded*. Daaripada membuat *thread* baru secara tak terbatas untuk setiap *request* yang masuk (yang bisa menyebabkan serangan DoS), `ThreadPool` mengalokasikan sejumlah *thread* tetap (dalam hal ini 4 *thread*) yang selalu siap sedia (*idle*).
 
 Saya memisahkan logika ini ke dalam *library crate* (`lib.rs`). Mekanisme kerjanya menggunakan pola komunikasi *messaage passing* melalui `mpsc::channel`. `ThreadPool` bertindak sebagai *sender* (pengirim) tugas, sementara objek `Worker` bertindak sebagai *receiver* (penerima). Karena *receiver* harus dibagi (shared) di antara beberapa *worker thread*, saya membungkusnya menggunakan `Arc` (Atomically Reference Counted) agar bisa dimiliki bersama secara aman, dan `Mutex` untuk memastikan hanya ada satu *worker* yang mengambil tugas dari antrean pada satu waktu. Hasilnya, jika ada *request* berat seperti `/sleep`, *request* tersebut akan dikerjakan oleh satu *worker*, sedangkan *request* lainnya bisa langsung diproses secara paralel oleh *worker* yang masih menganggur tanpa mengalami *blocking*.
+
+## Commit Bonus Reflection notes
+
+Pada bagian bonus ini, saya mengganti fungsi `ThreadPool::new` dengan fungsi `ThreadPool::build`. Perbedaan utama dari kedua pendekatan ini terletak pada cara penanganan *error* (*error handling*). 
+
+Fungsi `new` sebelumnya menggunakan `assert!(size > 0)`, yang artinya jika jumlah *thread* diisi dengan angka 0, program akan langsung melakukan `panic!` (berhenti mendadak dengan tidak terstruktur). Hal ini dianggap kurang ideal dalam *production* karena menyebabkan *unrecoverable error*. 
+
+Dengan menggunakan fungsi `build`, saya merancang fungsi ini untuk mengembalikan tipe data `Result<ThreadPool, PoolCreationError>`. Apabila parameter bernilai 0, fungsi akan mengembalikan nilai `Err(PoolCreationError)` alih-alih `panic!`. Pendekatan ini mendelegasikan tanggung jawab penanganan error ke pemanggil fungsi (dalam hal ini `main.rs`). Di `main.rs`, error tersebut ditangani secara lebih terstruktur menggunakan `unwrap_or_else`, di mana kita bisa mencetak pesan error yang jelas ke konsol (`eprintln!`) dan menutup program dengan kode *exit status* yang standar (`process::exit(1)`).
