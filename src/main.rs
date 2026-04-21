@@ -1,3 +1,4 @@
+use hello::ThreadPool; // Memanggil library ThreadPool yang baru dibuat
 use std::{
     fs,
     io::{prelude::*, BufReader},
@@ -8,10 +9,15 @@ use std::{
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let pool = ThreadPool::new(4); // Membuat pool dengan 4 thread
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        handle_connection(stream);
+        
+        // Menyerahkan tugas ke thread pool
+        pool.execute(|| {
+            handle_connection(stream);
+        });
     }
 }
 

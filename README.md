@@ -41,3 +41,9 @@ Pada milestone ini, saya mengganti struktur kontrol `if-else` menjadi `match` un
 Rute ini secara sengaja dihentikan sementara (pause) selama 10 detik menggunakan `thread::sleep`. Tujuan dari simulasi ini adalah untuk memperlihatkan mkelemahan arsitektur *single-threaded server*. 
 
 Ketika saya mengakses rute `/sleep` di satu tab browser, lalu segera mengakses rute root `/` di tab lain, tab kedua harus menunggu hingga proses 10 detik di rute `/sleep` selesai sebelum bisa dimuat. Hal ini terjadi karena *server* hanya memiliki satu *thread* (jalur eksekusi) utama. Jika satu *request* memakan waktu lama, *request* lain yang masuk akan tertahan dalam antrean, menyebabkan penurunan performa dan waktu respons yang buruk bagi pengguna lain.
+
+## Commit 5 Reflection notes
+
+Pada tahap akhir ini, saya mengimplementasikan `ThreadPool` untuk mengubah *server* menjadi arsitektur *multithreaded*. Daaripada membuat *thread* baru secara tak terbatas untuk setiap *request* yang masuk (yang bisa menyebabkan serangan DoS), `ThreadPool` mengalokasikan sejumlah *thread* tetap (dalam hal ini 4 *thread*) yang selalu siap sedia (*idle*).
+
+Saya memisahkan logika ini ke dalam *library crate* (`lib.rs`). Mekanisme kerjanya menggunakan pola komunikasi *messaage passing* melalui `mpsc::channel`. `ThreadPool` bertindak sebagai *sender* (pengirim) tugas, sementara objek `Worker` bertindak sebagai *receiver* (penerima). Karena *receiver* harus dibagi (shared) di antara beberapa *worker thread*, saya membungkusnya menggunakan `Arc` (Atomically Reference Counted) agar bisa dimiliki bersama secara aman, dan `Mutex` untuk memastikan hanya ada satu *worker* yang mengambil tugas dari antrean pada satu waktu. Hasilnya, jika ada *request* berat seperti `/sleep`, *request* tersebut akan dikerjakan oleh satu *worker*, sedangkan *request* lainnya bisa langsung diproses secara paralel oleh *worker* yang masih menganggur tanpa mengalami *blocking*.
